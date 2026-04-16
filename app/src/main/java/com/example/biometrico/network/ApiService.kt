@@ -27,7 +27,7 @@ data class Entrenamiento(
 
 object ApiService {
 
-    private const val BASE_URL = "http://192.168.5.135:3000"
+    private const val BASE_URL = "https://biometrico-examen.onrender.com"
 
     suspend fun verificarConexion(): Boolean = withContext(Dispatchers.IO) {
         try {
