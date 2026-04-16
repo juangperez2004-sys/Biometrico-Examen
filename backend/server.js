@@ -26,6 +26,11 @@ async function conectar() {
   }
 }
 
+// ── GET / → Ruta raíz
+app.get("/", (req, res) => {
+  res.json({ status: "ok", mensaje: "Backend Biométrico activo" });
+});
+
 // ── POST /entrenamientos → Guardar nuevo entrenamiento
 app.post("/entrenamientos", async (req, res) => {
   try {
