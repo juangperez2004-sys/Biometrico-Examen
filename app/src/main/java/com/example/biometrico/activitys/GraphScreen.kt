@@ -45,7 +45,6 @@ enum class MetricaVista { KILOMETROS, MINUTOS }
 // ── Convierte cualquier formato ISO a "dd/MM" ────────────────
 fun formatearFecha(fechaIso: String): String {
     return try {
-        // Toma solo los primeros 10 caracteres: "2026-04-16"
         val parte = fechaIso.take(10) // yyyy-MM-dd
         val partes = parte.split("-")
         if (partes.size >= 3) "${partes[2]}/${partes[1]}" else fechaIso.take(5)
@@ -170,7 +169,8 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
-                    UltimoEntrenamientoCard(entrenamiento = entrenamientos.first())
+                    // ── FIX: .last() para mostrar el más reciente ──
+                    UltimoEntrenamientoCard(entrenamiento = entrenamientos.last())
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
@@ -238,7 +238,6 @@ fun GraficaBarras(entrenamientos: List<Entrenamiento>) {
     val blanco = SunsetWhite.toArgb()
     val blancoSuave = SunsetWhite70.toArgb()
 
-    // ── FECHAS CORREGIDAS ────────────────────────────────────
     val etiquetas = entrenamientos.map { formatearFecha(it.fecha) }
 
     AndroidView(
@@ -299,7 +298,6 @@ fun GraficaLineas(entrenamientos: List<Entrenamiento>) {
     val blanco = SunsetWhite.toArgb()
     val blancoSuave = SunsetWhite70.toArgb()
 
-    // ── FECHAS CORREGIDAS ────────────────────────────────────
     val etiquetas = entrenamientos.map { formatearFecha(it.fecha) }
 
     AndroidView(
@@ -491,7 +489,6 @@ fun UltimoEntrenamientoCard(entrenamiento: Entrenamiento) {
                     fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                // ── FECHA CORREGIDA en card ──────────────────
                 Text(
                     formatearFecha(entrenamiento.fecha),
                     color = SunsetWhite40,
