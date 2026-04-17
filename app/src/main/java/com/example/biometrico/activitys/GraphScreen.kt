@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 
 enum class MetricaVista { KILOMETROS, MINUTOS }
 
-// ── Convierte cualquier formato ISO a "dd/MM" ────────────────
+//  Convierte cualquier formato ISO a "dd/MM"
 fun formatearFecha(fechaIso: String): String {
     return try {
         val parte = fechaIso.take(10) // yyyy-MM-dd
