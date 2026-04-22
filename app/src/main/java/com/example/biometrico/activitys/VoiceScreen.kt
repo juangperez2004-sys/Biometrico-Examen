@@ -41,11 +41,15 @@ import com.example.biometrico.network.ApiService
 import com.example.biometrico.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.*
 
+
+// los posibles estados de la pantalla de voz
 enum class VoiceEstado { IDLE, ESCUCHANDO, CONFIRMANDO, GUARDANDO, EXITO, ERROR }
 
+
+// diccionario para convertir numeros escritos en letras a digitos
+// ej: "cinco" -> "5", "veinte" -> "20"
 private val numerosLetras = mapOf(
     "cero" to "0", "uno" to "1", "una" to "1", "dos" to "2",
     "tres" to "3", "cuatro" to "4", "cinco" to "5", "seis" to "6",
@@ -60,39 +64,56 @@ private val numerosLetras = mapOf(
     "cien" to "100", "ciento" to "100"
 )
 
+
+// convierte el texto reconocido a minusculas y reemplaza palabras numericas
+// tambien maneja compuestos como "treinta y dos" -> "32"
 fun normalizarTexto(texto: String): String {
     var t = texto.lowercase()
+
     val compuestoRegex = Regex(
         """(veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)\s+y\s+""" +
                 """(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|una)"""
     )
+
     t = compuestoRegex.replace(t) { mr ->
         val decena = numerosLetras[mr.groupValues[1]]?.toIntOrNull() ?: 0
         val unidad = numerosLetras[mr.groupValues[2]]?.toIntOrNull() ?: 0
         (decena + unidad).toString()
     }
+
     numerosLetras.forEach { (palabra, numero) ->
         t = t.replace(Regex("""\b$palabra\b"""), numero)
     }
+
     return t
 }
 
+
+// busca kilometros y minutos dentro del texto que dijo el usuario
+// regresa un par (km, min) como strings, vacios si no encuentra algo
 fun extraerMetricas(texto: String): Pair<String, String> {
     val t = normalizarTexto(texto)
+
     val kmRegex = Regex("""(\d+(?:[.,]\d+)?)\s*(?:km|kilómetros?|kilometros?|kms?)""")
     val minRegex = Regex(
         """(\d+(?:[.,]\d+)?)\s*(?:min(?:utos?)?)|""" +
                 """(?:tardé|tarde|duré|dure|en)\s+(\d+(?:[.,]\d+)?)(?:\s+min(?:utos?)?)?"""
     )
+
     val km = kmRegex.find(t)?.groupValues?.get(1)?.replace(",", ".") ?: ""
+
     var min = ""
     val minMatch = minRegex.find(t)
     if (minMatch != null) {
         min = (minMatch.groupValues[1].ifEmpty { minMatch.groupValues[2] }).replace(",", ".")
     }
+
     return Pair(km, min)
 }
 
+
+// hace vibrar el telefono con un patron personalizado
+// funciona tanto en android nuevo como en versiones viejas
 fun vibrar(context: Context, patron: LongArray = longArrayOf(0, 80, 60, 80)) {
     val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
@@ -101,6 +122,7 @@ fun vibrar(context: Context, patron: LongArray = longArrayOf(0, 80, 60, 80)) {
         @Suppress("DEPRECATION")
         context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     }
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         vibrator.vibrate(VibrationEffect.createWaveform(patron, -1))
     } else {
@@ -108,6 +130,7 @@ fun vibrar(context: Context, patron: LongArray = longArrayOf(0, 80, 60, 80)) {
         vibrator.vibrate(patron, -1)
     }
 }
+
 
 @Composable
 fun VoiceScreen(onVolver: () -> Unit = {}) {
@@ -124,10 +147,12 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
     var rmsLevel by remember { mutableStateOf(0f) }
     var timeoutJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
+    // revisa si ya tenemos permiso de microfono
     fun tienePermiso() = ContextCompat.checkSelfPermission(
         context, Manifest.permission.RECORD_AUDIO
     ) == PackageManager.PERMISSION_GRANTED
 
+    // pide el permiso al usuario si no lo tiene
     fun pedirPermiso() {
         ActivityCompat.requestPermissions(
             context as Activity,
@@ -138,10 +163,13 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
 
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
 
+    // listener que maneja todos los eventos del reconocedor de voz
     val recognitionListener = remember {
         object : RecognitionListener {
+
             override fun onReadyForSpeech(p0: Bundle?) {
                 vibrar(context, longArrayOf(0, 60))
+                // si en 5 segundos no habla, cancelo solo
                 timeoutJob = scope.launch {
                     delay(5000)
                     if (estado == VoiceEstado.ESCUCHANDO) {
@@ -151,22 +179,37 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                     }
                 }
             }
-            override fun onBeginningOfSpeech() { timeoutJob?.cancel() }
+
+            override fun onBeginningOfSpeech() {
+                // ya empezo a hablar, cancelo el timeout
+                timeoutJob?.cancel()
+            }
+
             override fun onRmsChanged(rmsdB: Float) {
+                // nivel de volumen del micro, lo uso para la animacion de ondas
                 rmsLevel = (rmsdB / 10f).coerceIn(0f, 1f)
             }
+
             override fun onBufferReceived(p0: ByteArray?) {}
-            override fun onEndOfSpeech() { textoParcial = ""; rmsLevel = 0f }
+
+            override fun onEndOfSpeech() {
+                textoParcial = ""
+                rmsLevel = 0f
+            }
+
             override fun onPartialResults(partialResults: Bundle?) {
+                // texto en tiempo real mientras habla
                 val parcial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!parcial.isNullOrEmpty()) {
                     textoParcial = parcial[0]
                     timeoutJob?.cancel()
                 }
             }
+
             override fun onResults(results: Bundle?) {
                 timeoutJob?.cancel()
                 rmsLevel = 0f
+
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     textoReconocido = matches[0]
@@ -180,23 +223,27 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                     estado = VoiceEstado.ERROR
                 }
             }
+
             override fun onError(error: Int) {
                 timeoutJob?.cancel()
                 textoParcial = ""
                 rmsLevel = 0f
+
                 mensajeError = when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH       -> "No se entendió. Intenta de nuevo."
-                    SpeechRecognizer.ERROR_NETWORK        -> "Sin conexión de red."
-                    SpeechRecognizer.ERROR_AUDIO          -> "Error de micrófono."
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No se entendió. Intenta de nuevo."
+                    SpeechRecognizer.ERROR_NETWORK -> "Sin conexión de red."
+                    SpeechRecognizer.ERROR_AUDIO -> "Error de micrófono."
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No se detectó voz. Intenta de nuevo."
                     else -> "Error al reconocer voz ($error)."
                 }
                 estado = VoiceEstado.ERROR
             }
+
             override fun onEvent(p0: Int, p1: Bundle?) {}
         }
     }
 
+    // conecto el listener y destruyo el recognizer cuando salgo de la pantalla
     DisposableEffect(Unit) {
         speechRecognizer.setRecognitionListener(recognitionListener)
         onDispose {
@@ -205,6 +252,7 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
         }
     }
 
+    // arranca el reconocimiento de voz en español
     fun iniciarEscucha() {
         textoParcial = ""
         rmsLevel = 0f
@@ -218,6 +266,7 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
         speechRecognizer.startListening(intent)
     }
 
+    // manda el entrenamiento al servidor y regresa al home si sale bien
     fun guardarEntrenamiento() {
         scope.launch {
             estado = VoiceEstado.GUARDANDO
@@ -256,6 +305,7 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
             AppSubtitle(text = "Di: \"Corrí 5 km en 30 minutos\"")
             Spacer(modifier = Modifier.height(40.dp))
 
+            // muestro el boton de microfono segun el estado actual
             when (estado) {
                 VoiceEstado.IDLE, VoiceEstado.ERROR -> {
                     MicBoton(activo = false, rmsLevel = 0f, onClick = {
@@ -264,6 +314,7 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                 }
                 VoiceEstado.ESCUCHANDO -> {
                     MicBoton(activo = true, rmsLevel = rmsLevel, onClick = {
+                        // si toca el boton mientras escucha, cancela
                         timeoutJob?.cancel()
                         speechRecognizer.stopListening()
                         textoParcial = ""
@@ -276,7 +327,9 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // cada estado muestra algo diferente debajo del microfono
             when (estado) {
+
                 VoiceEstado.IDLE ->
                     AppSubtitle(text = "Presiona el micrófono y habla")
 
@@ -288,6 +341,7 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
+                    // muestro lo que va reconociendo en tiempo real
                     if (textoParcial.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Box(
@@ -318,8 +372,10 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                         onMinutosChange = { minutos = it },
                         onConfirmar = { guardarEntrenamiento() },
                         onReintentar = {
-                            textoReconocido = ""; kilometros = ""
-                            minutos = ""; estado = VoiceEstado.IDLE
+                            textoReconocido = ""
+                            kilometros = ""
+                            minutos = ""
+                            estado = VoiceEstado.IDLE
                         }
                     )
                 }
@@ -335,8 +391,10 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
                         kilometros = kilometros,
                         minutos = minutos,
                         onNuevo = {
-                            textoReconocido = ""; kilometros = ""
-                            minutos = ""; estado = VoiceEstado.IDLE
+                            textoReconocido = ""
+                            kilometros = ""
+                            minutos = ""
+                            estado = VoiceEstado.IDLE
                         }
                     )
                 }
@@ -359,19 +417,24 @@ fun VoiceScreen(onVolver: () -> Unit = {}) {
             }
 
             Spacer(modifier = Modifier.weight(1f))
+
             FilledTonalBoton(
                 onClick = onVolver,
                 text = "Volver al inicio",
                 icon = Icons.Default.ArrowBack,
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+
+// boton circular del microfono con animacion de ondas cuando esta activo
 @Composable
 fun MicBoton(activo: Boolean, rmsLevel: Float, onClick: () -> Unit) {
+
     val infiniteTransition = rememberInfiniteTransition(label = "mic")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -381,6 +444,8 @@ fun MicBoton(activo: Boolean, rmsLevel: Float, onClick: () -> Unit) {
             repeatMode = RepeatMode.Reverse
         ), label = "micScale"
     )
+
+    // tres ondas con velocidades distintas para que se vea organico
     val wave1 by infiniteTransition.animateFloat(
         initialValue = 0.6f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(600, easing = EaseInOut), RepeatMode.Reverse),
@@ -404,6 +469,7 @@ fun MicBoton(activo: Boolean, rmsLevel: Float, onClick: () -> Unit) {
             OndaCircular(size = 190.dp, alpha = waveAlpha * wave2 + 0.05f, color = SunsetOrange)
             OndaCircular(size = 165.dp, alpha = waveAlpha * wave1 + 0.08f, color = SunsetMagenta)
         }
+
         Box(
             modifier = Modifier
                 .size(160.dp)
@@ -429,6 +495,8 @@ fun MicBoton(activo: Boolean, rmsLevel: Float, onClick: () -> Unit) {
     }
 }
 
+
+// circulo semitransparente que forma las ondas del microfono
 @Composable
 fun OndaCircular(size: Dp, alpha: Float, color: Color) {
     Box(
@@ -439,6 +507,8 @@ fun OndaCircular(size: Dp, alpha: Float, color: Color) {
     )
 }
 
+
+// pantalla que muestra lo que entendio el sistema y deja editar los datos antes de guardar
 @Composable
 fun PantallaConfirmacion(
     texto: String,
@@ -455,6 +525,8 @@ fun PantallaConfirmacion(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
+        // si detecto los dos datos muestro el resumen, si no aviso lo que falta
         if (ambosDetectados) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -465,7 +537,12 @@ fun PantallaConfirmacion(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Métricas detectadas", color = SunsetOrange, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "Métricas detectadas",
+                        color = SunsetOrange,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -486,12 +563,16 @@ fun PantallaConfirmacion(
                 colors = CardDefaults.cardColors(containerColor = SunsetMagenta.copy(alpha = 0.15f)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Default.Info, null, tint = SunsetMagenta, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "No detecté ${if (kilometros.isEmpty()) "km" else ""}${if (kilometros.isEmpty() && minutos.isEmpty()) " ni " else ""}${if (minutos.isEmpty()) "minutos" else ""}. Completa los datos.",
-                        color = SunsetMagenta, fontSize = 12.sp
+                        color = SunsetMagenta,
+                        fontSize = 12.sp
                     )
                 }
             }
@@ -499,6 +580,7 @@ fun PantallaConfirmacion(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // muestro el texto original que dijo el usuario
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -515,23 +597,34 @@ fun PantallaConfirmacion(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // campos para corregir los datos si el reconocimiento no fue exacto
         OutlinedTextField(
-            value = kilometros, onValueChange = onKilometrosChange,
+            value = kilometros,
+            onValueChange = onKilometrosChange,
             label = { Text("Kilómetros", color = SunsetWhite70) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = SunsetOrange, unfocusedBorderColor = SunsetWhite40,
-                focusedTextColor = SunsetWhite, unfocusedTextColor = SunsetWhite
+                focusedBorderColor = SunsetOrange,
+                unfocusedBorderColor = SunsetWhite40,
+                focusedTextColor = SunsetWhite,
+                unfocusedTextColor = SunsetWhite
             )
         )
+
         Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
-            value = minutos, onValueChange = onMinutosChange,
+            value = minutos,
+            onValueChange = onMinutosChange,
             label = { Text("Minutos", color = SunsetWhite70) },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = SunsetOrange, unfocusedBorderColor = SunsetWhite40,
-                focusedTextColor = SunsetWhite, unfocusedTextColor = SunsetWhite
+                focusedBorderColor = SunsetOrange,
+                unfocusedBorderColor = SunsetWhite40,
+                focusedTextColor = SunsetWhite,
+                unfocusedTextColor = SunsetWhite
             )
         )
 
@@ -539,26 +632,41 @@ fun PantallaConfirmacion(
 
         Button(
             onClick = onConfirmar,
-            modifier = Modifier.fillMaxWidth().height(64.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SunsetOrange),
             shape = RoundedCornerShape(16.dp)
         ) {
             Icon(Icons.Default.CloudUpload, null, tint = SunsetWhite, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Guardar entrenamiento", color = SunsetWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                "Guardar entrenamiento",
+                color = SunsetWhite,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         FilledTonalBoton(
-            onClick = onReintentar, text = "Reintentar voz",
-            icon = Icons.Default.Refresh, modifier = Modifier.fillMaxWidth()
+            onClick = onReintentar,
+            text = "Reintentar voz",
+            icon = Icons.Default.Refresh,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
+
+// iconito con valor y etiqueta, se reutiliza en confirmacion y en exito
 @Composable
-fun MetricaPreview(valor: String, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun MetricaPreview(
+    valor: String,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, null, tint = SunsetOrange, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.height(4.dp))
@@ -567,8 +675,12 @@ fun MetricaPreview(valor: String, label: String, icon: androidx.compose.ui.graph
     }
 }
 
+
+// pantalla de confirmacion cuando el guardado fue exitoso
+// cuenta regresiva de 3 segundos y regresa al home solo
 @Composable
 fun PantallaExito(kilometros: String, minutos: String, onNuevo: () -> Unit) {
+
     var segundos by remember { mutableStateOf(3) }
 
     LaunchedEffect(Unit) {
@@ -597,11 +709,15 @@ fun PantallaExito(kilometros: String, minutos: String, onNuevo: () -> Unit) {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             "Datos guardados correctamente",
-            color = SunsetWhite, fontWeight = FontWeight.Bold,
-            fontSize = 20.sp, textAlign = TextAlign.Center
+            color = SunsetWhite,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            textAlign = TextAlign.Center
         )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Card(
@@ -610,7 +726,9 @@ fun PantallaExito(kilometros: String, minutos: String, onNuevo: () -> Unit) {
             shape = RoundedCornerShape(16.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 MetricaPreview("$kilometros km", "Distancia", Icons.Default.DirectionsRun)

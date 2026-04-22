@@ -2,7 +2,7 @@ package com.example.biometrico.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// === SUNSET GRADIENT PALETTE ===
+// Paleta de color
 val SunsetOrange     = Color(0xFFFF512F)
 val SunsetMagenta    = Color(0xFFDD2476)
 val SunsetBackground = Color(0xFF0F0F23)

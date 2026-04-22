@@ -32,28 +32,29 @@ import com.example.biometrico.components.AppTitle
 import com.example.biometrico.components.ImprimirIcono
 import com.example.biometrico.ui.theme.*
 
+
 @Composable
 fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
 
     val context = LocalContext.current
     val activity = context as? FragmentActivity
 
-    // Contador de intentos fallidos (RNF03)
+    // cuento los intentos fallidos para bloquear despues de 3
     var intentosFallidos by remember { mutableStateOf(0) }
-    var mensajeEstado by remember { mutableStateOf("") }
     var bloqueado by remember { mutableStateOf(false) }
 
-    // Verificar si el dispositivo tiene sensor biométrico
+    // reviso si el telefono tiene sensor biometrico
     val tieneBiometrico = remember {
         val bm = BiometricManager.from(context)
         bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) ==
                 BiometricManager.BIOMETRIC_SUCCESS
     }
 
+    // animacion de fondo que respira
     val infiniteTransition = rememberInfiniteTransition(label = "bg")
     val bgScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue  = 1.2f,
+        targetValue = 1.2f,
         animationSpec = infiniteRepeatable(
             animation = tween(3000, easing = EaseInOut),
             repeatMode = RepeatMode.Reverse
@@ -61,19 +62,13 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
         label = "bgScale"
     )
 
-    // Animación de error (shake)
-    val shakeOffset by animateFloatAsState(
-        targetValue = if (intentosFallidos > 0) 0f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy),
-        label = "shake"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(SunsetBackground)
     ) {
-        // Decoraciones de fondo
+
+        // circulo decorativo arriba a la izquierda
         Box(
             modifier = Modifier
                 .size(300.dp)
@@ -89,6 +84,8 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                     )
                 )
         )
+
+        // circulo decorativo abajo a la derecha
         Box(
             modifier = Modifier
                 .size(250.dp)
@@ -112,7 +109,8 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Badge
+
+            // etiqueta pequeña arriba
             Box(
                 modifier = Modifier
                     .clip(CircleShape)
@@ -134,7 +132,7 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Ícono adaptado: huella o advertencia si no hay sensor
+            // si no hay sensor muestro icono de advertencia, si hay muestro la huella
             if (!tieneBiometrico) {
                 Box(
                     modifier = Modifier
@@ -151,10 +149,11 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                     )
                 }
             } else {
+                // el icono se pone rosa si ya fallo 3 veces
                 ImprimirIcono(
                     icono = Icons.Default.Fingerprint,
-                    size  = 96.dp,
-                    tint  = if (intentosFallidos >= 3) SunsetMagenta else SunsetOrange
+                    size = 96.dp,
+                    tint = if (intentosFallidos >= 3) SunsetMagenta else SunsetOrange
                 )
             }
 
@@ -164,7 +163,7 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Mensaje según estado del sensor
+            // si no hay sensor aviso al usuario, si hay le digo que use su huella
             if (!tieneBiometrico) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -177,8 +176,11 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Warning, null, tint = SunsetMagenta,
-                            modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.Warning, null,
+                            tint = SunsetMagenta,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "Este dispositivo no tiene sensor biométrico disponible.",
@@ -193,7 +195,7 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                 )
             }
 
-            // Mensaje de intentos fallidos (RNF03)
+            // aviso de intentos fallidos, solo aparece entre el 1 y el 2
             if (intentosFallidos in 1..2) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
@@ -213,7 +215,7 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                 }
             }
 
-            // Bloqueado después de 3 intentos
+            // mensaje de bloqueo cuando ya llego a 3 intentos
             if (bloqueado) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
@@ -227,8 +229,11 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                         modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Lock, null, tint = SunsetMagenta,
-                            modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Default.Lock, null,
+                            tint = SunsetMagenta,
+                            modifier = Modifier.size(20.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "3 intentos fallidos. Presiona el botón para intentar de nuevo.",
@@ -241,7 +246,6 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Botón principal
             ActionsButton(
                 onClick = {
                     if (!tieneBiometrico) {
@@ -252,9 +256,9 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                         ).show()
                         return@ActionsButton
                     }
+
                     if (activity != null) {
-                        // Resetear bloqueo al intentar de nuevo
-                        bloqueado = false
+                        bloqueado = false // reseteo el bloqueo cada vez que intenta
                         lanzarBiometricoConContador(
                             activity = activity,
                             onExito = { onAutenticacionExitosa() },
@@ -270,7 +274,6 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
                                 }
                             },
                             onError = { msg ->
-                                // Error del sistema biométrico (cancelación, no disponible)
                                 if (msg.isNotEmpty()) {
                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
@@ -297,7 +300,8 @@ fun LoginActivity(onAutenticacionExitosa: () -> Unit = {}) {
     }
 }
 
-// ── Biométrico con manejo de intentos ────────────────────────
+
+// lanza el prompt biometrico y maneja los 3 casos: exito, fallo y error del sistema
 fun lanzarBiometricoConContador(
     activity: FragmentActivity,
     onExito: () -> Unit,
@@ -305,29 +309,34 @@ fun lanzarBiometricoConContador(
     onError: (String) -> Unit
 ) {
     val executor = ContextCompat.getMainExecutor(activity)
+
     val biometricPrompt = BiometricPrompt(
         activity, executor,
         object : BiometricPrompt.AuthenticationCallback() {
+
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
                 onExito()
             }
+
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
-                // Huella leída pero no reconocida
+                // huella leida pero no coincide con ninguna registrada
                 onFallo()
             }
+
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                // Solo mostrar mensaje para errores reales, no cancelación del usuario
+
+                // si el usuario cancela no muestro nada, solo para errores reales
                 val msg = when (errorCode) {
                     BiometricPrompt.ERROR_CANCELED,
                     BiometricPrompt.ERROR_USER_CANCELED,
                     BiometricPrompt.ERROR_NEGATIVE_BUTTON -> ""
                     BiometricPrompt.ERROR_HW_NOT_PRESENT,
                     BiometricPrompt.ERROR_HW_UNAVAILABLE -> "Sensor biométrico no disponible"
-                    BiometricPrompt.ERROR_NO_BIOMETRICS  -> "No hay huellas registradas en este dispositivo"
-                    BiometricPrompt.ERROR_LOCKOUT        -> "Demasiados intentos. Espera un momento."
+                    BiometricPrompt.ERROR_NO_BIOMETRICS -> "No hay huellas registradas en este dispositivo"
+                    BiometricPrompt.ERROR_LOCKOUT -> "Demasiados intentos. Espera un momento."
                     BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> "Sensor bloqueado. Desbloquea con PIN."
                     else -> "Error biométrico: $errString"
                 }
@@ -345,7 +354,8 @@ fun lanzarBiometricoConContador(
     biometricPrompt.authenticate(promptInfo)
 }
 
-// Mantener función original para compatibilidad
+
+// esta funcion queda para que no truene nada que ya la usaba antes
 fun lanzarBiometrico(
     activity: FragmentActivity,
     autenticacionExitosa: () -> Unit

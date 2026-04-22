@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.biometrico.ui.theme.*
 
-// ── Icono con glow pulsante ──────────────────────────────────────
+// ── Icono con glow pulsante
 @Composable
 fun ImprimirIcono(
     icono: ImageVector,
@@ -57,7 +57,7 @@ fun ImprimirIcono(
     }
 }
 
-// ── Título con gradiente ─────────────────────────────────────────
+//  Título con gradiente
 @Composable
 fun AppTitle(
     text: String,
@@ -74,7 +74,7 @@ fun AppTitle(
     )
 }
 
-// ── Subtítulo suave ──────────────────────────────────────────────
+//  Subtítulo suave
 @Composable
 fun AppSubtitle(
     text: String,
@@ -89,7 +89,7 @@ fun AppSubtitle(
     )
 }
 
-// ── Botón principal con gradiente Sunset ─────────────────────────
+//  Botón principal con gradiente Sunset
 @Composable
 fun ActionsButton(
     onClick: () -> Unit,
@@ -142,7 +142,7 @@ fun ActionsButton(
     }
 }
 
-// ── Botón secundario tonal ───────────────────────────────────────
+//  Botón secundario tonal
 @Composable
 fun FilledTonalBoton(
     onClick: () -> Unit,
@@ -175,7 +175,7 @@ fun FilledTonalBoton(
     }
 }
 
-// ── Tarjeta con borde gradiente ──────────────────────────────────
+//  Tarjeta con borde gradiente
 @Composable
 fun SunsetCard(
     modifier: Modifier = Modifier,

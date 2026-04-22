@@ -28,6 +28,7 @@ import com.example.biometrico.network.ApiService
 import com.example.biometrico.network.ResumenHome
 import com.example.biometrico.ui.theme.*
 
+
 @Composable
 fun Home(
     onIrAVoz: () -> Unit = {},
@@ -40,11 +41,12 @@ fun Home(
     var errorConexion by remember { mutableStateOf(false) }
     var mostrarDialogoCerrar by remember { mutableStateOf(false) }
 
-    // ── Cargar datos directo, sin ping previo ────────────────
+    // cargo el resumen y la racha al entrar a la pantalla
     LaunchedEffect(Unit) {
         errorConexion = false
+
         val resumenResult = ApiService.obtenerResumen()
-        val rachaResult   = ApiService.obtenerRacha()
+        val rachaResult = ApiService.obtenerRacha()
 
         if (resumenResult.isSuccess) {
             resumen = resumenResult.getOrNull()
@@ -59,7 +61,7 @@ fun Home(
         cargando = false
     }
 
-    // ── Diálogo confirmación cerrar sesión ───────────────────
+    // dialogo para confirmar que quiere cerrar sesion
     if (mostrarDialogoCerrar) {
         AlertDialog(
             onDismissRequest = { mostrarDialogoCerrar = false },
@@ -91,7 +93,8 @@ fun Home(
             .fillMaxSize()
             .background(SunsetBackground)
     ) {
-        // Fondo decorativo
+
+        // circulo decorativo de fondo
         Box(
             modifier = Modifier
                 .size(280.dp)
@@ -112,9 +115,10 @@ fun Home(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             Spacer(modifier = Modifier.height(48.dp))
 
-            // ── Botón cerrar sesión ──────────────────────────
+            // boton de cerrar sesion arriba a la derecha
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -129,7 +133,7 @@ fun Home(
                 }
             }
 
-            // ── Alerta error de conexión ─────────────────────
+            // aviso si no se pudo conectar al servidor
             if (errorConexion && !cargando) {
                 Card(
                     modifier = Modifier
@@ -160,7 +164,7 @@ fun Home(
                 }
             }
 
-            // ── Avatar ───────────────────────────────────────
+            // avatar del usuario
             Box(
                 modifier = Modifier
                     .size(80.dp)
@@ -186,7 +190,7 @@ fun Home(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Card sesión verificada ───────────────────────
+            // card que confirma que la sesion esta activa
             SunsetCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -224,9 +228,8 @@ fun Home(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Cards métricas ───────────────────────────────
+            // mientras carga muestro cajitas grises de placeholder
             if (cargando) {
-                // Skeleton mientras carga
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -242,6 +245,8 @@ fun Home(
                     }
                 }
             } else {
+
+                // las 3 tarjetas de metricas: entrenos, km y racha
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -266,7 +271,7 @@ fun Home(
                     )
                 }
 
-                // ── Card pace promedio (solo si hay datos) ───
+                // card del pace, solo la muestro si hay datos reales
                 val pace = resumen?.pacePromedio ?: 0.0
                 if (!errorConexion && resumen != null && pace > 0) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -295,11 +300,7 @@ fun Home(
                                     )
                                 }
                                 Column {
-                                    Text(
-                                        "Pace promedio",
-                                        color = SunsetWhite70,
-                                        fontSize = 12.sp
-                                    )
+                                    Text("Pace promedio", color = SunsetWhite70, fontSize = 12.sp)
                                     Text(
                                         "%.1f min/km".format(pace),
                                         color = SunsetWhite,
@@ -337,6 +338,8 @@ fun Home(
     }
 }
 
+
+// tarjetita con icono, numero y etiqueta — se usa para entrenos, km y racha
 @Composable
 fun MetricCard(
     modifier: Modifier = Modifier,
@@ -344,6 +347,7 @@ fun MetricCard(
     label: String,
     value: String
 ) {
+    // animacion suave que hace que la card respire un poco
     val infiniteTransition = rememberInfiniteTransition(label = "metric")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,

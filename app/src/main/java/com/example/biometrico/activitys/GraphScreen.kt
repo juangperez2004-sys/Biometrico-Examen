@@ -40,18 +40,23 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
 import kotlinx.coroutines.launch
 
+
+// las dos metricas que se pueden ver en la grafica
 enum class MetricaVista { KILOMETROS, MINUTOS }
 
-//  Convierte cualquier formato ISO a "dd/MM"
+
+// convierte fecha ISO a formato dd/MM para mostrar en la grafica
+// ej: "2024-05-12T..." -> "12/05"
 fun formatearFecha(fechaIso: String): String {
     return try {
-        val parte = fechaIso.take(10) // yyyy-MM-dd
+        val parte = fechaIso.take(10)
         val partes = parte.split("-")
         if (partes.size >= 3) "${partes[2]}/${partes[1]}" else fechaIso.take(5)
     } catch (_: Exception) {
         fechaIso.take(5)
     }
 }
+
 
 @Composable
 fun GraphScreen(onVolver: () -> Unit = {}) {
@@ -62,6 +67,8 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
     var error by remember { mutableStateOf("") }
     var metricaVista by remember { mutableStateOf(MetricaVista.KILOMETROS) }
 
+    // cargo los entrenamientos al entrar a la pantalla
+    // los reverso para que aparezcan del mas viejo al mas nuevo en la grafica
     LaunchedEffect(Unit) {
         val resultado = ApiService.obtenerEntrenamientos()
         if (resultado.isSuccess) {
@@ -84,6 +91,7 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
             Spacer(modifier = Modifier.height(48.dp))
 
             AppTitle(text = "Mis Gráficas")
@@ -92,7 +100,10 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // muestro algo distinto dependiendo del estado
             when {
+
+                // todavia esperando respuesta del servidor
                 cargando -> {
                     Spacer(modifier = Modifier.height(80.dp))
                     CircularProgressIndicator(color = SunsetOrange, strokeWidth = 3.dp)
@@ -100,6 +111,7 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                     Text("Cargando datos...", color = SunsetWhite70, fontSize = 14.sp)
                 }
 
+                // hubo un error al conectar
                 error.isNotEmpty() -> {
                     EstadoVacio(
                         icono = Icons.Default.WifiOff,
@@ -111,7 +123,8 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                     FilledTonalBoton(
                         onClick = {
                             scope.launch {
-                                cargando = true; error = ""
+                                cargando = true
+                                error = ""
                                 val resultado = ApiService.obtenerEntrenamientos()
                                 entrenamientos = if (resultado.isSuccess)
                                     resultado.getOrDefault(emptyList()).reversed()
@@ -128,22 +141,28 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                     )
                 }
 
+                // conecto bien pero no hay nada guardado todavia
                 entrenamientos.isEmpty() -> {
                     EstadoVacioAnimado()
                 }
 
+                // hay datos, muestro todo
                 else -> {
                     ResumenCard(entrenamientos = entrenamientos)
+
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    // tabs para cambiar entre km y minutos
                     SelectorMetrica(
                         seleccionada = metricaVista,
                         onSeleccionar = { metricaVista = it }
                     )
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     val tituloGrafica = when (metricaVista) {
                         MetricaVista.KILOMETROS -> "Kilómetros por sesión"
-                        MetricaVista.MINUTOS    -> "Minutos por sesión"
+                        MetricaVista.MINUTOS -> "Minutos por sesión"
                     }
 
                     Text(
@@ -152,8 +171,10 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
+
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // contenedor de la grafica
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -164,13 +185,15 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                     ) {
                         when (metricaVista) {
                             MetricaVista.KILOMETROS -> GraficaBarras(entrenamientos = entrenamientos)
-                            MetricaVista.MINUTOS    -> GraficaLineas(entrenamientos = entrenamientos)
+                            MetricaVista.MINUTOS -> GraficaLineas(entrenamientos = entrenamientos)
                         }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
-                    // ── FIX: .last() para mostrar el más reciente ──
+
+                    // uso .last() porque la lista ya esta en orden cronologico
                     UltimoEntrenamientoCard(entrenamiento = entrenamientos.last())
+
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
@@ -181,11 +204,14 @@ fun GraphScreen(onVolver: () -> Unit = {}) {
                 icon = Icons.Default.ArrowBack,
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+
+// tabs para seleccionar que metrica ver en la grafica
 @Composable
 fun SelectorMetrica(seleccionada: MetricaVista, onSeleccionar: (MetricaVista) -> Unit) {
     Row(
@@ -211,6 +237,8 @@ fun SelectorMetrica(seleccionada: MetricaVista, onSeleccionar: (MetricaVista) ->
     }
 }
 
+
+// boton individual de cada tab, cambia de color si esta seleccionado
 @Composable
 fun MetricaTab(texto: String, seleccionado: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Button(
@@ -232,6 +260,8 @@ fun MetricaTab(texto: String, seleccionado: Boolean, modifier: Modifier, onClick
     }
 }
 
+
+// grafica de barras para mostrar los kilometros de cada sesion
 @Composable
 fun GraficaBarras(entrenamientos: List<Entrenamiento>) {
     val naranja = SunsetOrange.toArgb()
@@ -292,6 +322,8 @@ fun GraficaBarras(entrenamientos: List<Entrenamiento>) {
     )
 }
 
+
+// grafica de linea para mostrar los minutos de cada sesion
 @Composable
 fun GraficaLineas(entrenamientos: List<Entrenamiento>) {
     val magenta = SunsetMagenta.toArgb()
@@ -358,11 +390,15 @@ fun GraficaLineas(entrenamientos: List<Entrenamiento>) {
     )
 }
 
+
+// pantalla que se muestra cuando no hay entrenamientos aun
+// el icono parpadea para llamar la atencion
 @Composable
 fun EstadoVacioAnimado() {
     val infiniteTransition = rememberInfiniteTransition(label = "empty")
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f, targetValue = 1f,
+        initialValue = 0.4f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = EaseInOut),
             repeatMode = RepeatMode.Reverse
@@ -391,6 +427,7 @@ fun EstadoVacioAnimado() {
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+
         Text(
             "Aún no hay entrenamientos",
             color = SunsetWhite,
@@ -398,15 +435,19 @@ fun EstadoVacioAnimado() {
             fontSize = 18.sp,
             textAlign = TextAlign.Center
         )
+
         Spacer(modifier = Modifier.height(8.dp))
+
         Text(
             "Registra tu primera sesión\nusando el micrófono",
             color = SunsetWhite70,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
+
         Spacer(modifier = Modifier.height(24.dp))
 
+        // ejemplos de lo que puede decir el usuario
         listOf(
             "\"Corrí 5 km en 30 minutos\"",
             "\"Hice 10 kilómetros en 45 min\"",
@@ -430,6 +471,8 @@ fun EstadoVacioAnimado() {
     }
 }
 
+
+// pantalla generica de error o vacio, recibe el icono y colores como parametros
 @Composable
 fun EstadoVacio(
     icono: androidx.compose.ui.graphics.vector.ImageVector,
@@ -450,18 +493,16 @@ fun EstadoVacio(
         ) {
             Icon(icono, null, tint = color, modifier = Modifier.size(40.dp))
         }
+
         Spacer(modifier = Modifier.height(16.dp))
         Text(titulo, color = SunsetWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            subtitulo,
-            color = SunsetWhite70,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center
-        )
+        Text(subtitulo, color = SunsetWhite70, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 
+
+// card que muestra los datos del entrenamiento mas reciente
 @Composable
 fun UltimoEntrenamientoCard(entrenamiento: Entrenamiento) {
     val km = entrenamiento.kilometros
@@ -495,7 +536,9 @@ fun UltimoEntrenamientoCard(entrenamiento: Entrenamiento) {
                     fontSize = 11.sp
                 )
             }
+
             Spacer(modifier = Modifier.height(12.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -508,6 +551,8 @@ fun UltimoEntrenamientoCard(entrenamiento: Entrenamiento) {
     }
 }
 
+
+// card con los totales de todos los entrenamientos juntos
 @Composable
 fun ResumenCard(entrenamientos: List<Entrenamiento>) {
     val totalKm = entrenamientos.sumOf { it.kilometros }
@@ -543,6 +588,8 @@ fun ResumenCard(entrenamientos: List<Entrenamiento>) {
     }
 }
 
+
+// componente pequeño de valor + etiqueta, se reutiliza en varias cards
 @Composable
 fun ResumenItem(valor: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
